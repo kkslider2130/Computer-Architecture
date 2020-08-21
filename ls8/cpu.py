@@ -101,11 +101,58 @@ class CPU:
         while self.pc < len(self.ram):
             command = self.ram[self.pc]
             HLT = 0b00000001
+            AND = 0b10101000
+            OR = 0b10101010
+            XOR = 0b10101011
+            NOT = 0b01101001
+            SHL = 0b10101100
+            SHR = 0b10101101
+            MOD = 0b10100100,
             operand1 = self.ram_read(self.pc+1)
             operand2 = self.ram_read(self.pc+2)
+            regop1 = self.reg[operand1]
+            regop2 = self.reg[operand2]
 
             if command == HLT:  # stops program
                 break
+
+            if command == AND:
+                num = regop1
+                num2 = regop2
+                regop1 = (num & num2)
+
+            if command == OR:
+                num = regop1
+                num2 = regop2
+                regop1 = (num | num2)
+
+            if command == XOR:
+                num = regop1
+                num2 = regop2
+                regop1 = (num ^ num2)
+
+            if command == NOT:
+                num = regop1
+                regop1 = ~num
+
+            if command == SHL:
+                num = regop1
+                num2 = regop2
+                regop1 = regop1 << regop2
+
+            if command == SHR:
+                num = regop1
+                num2 = regop2
+                regop1 = regop1 >> regop2
+
+            if command == MOD:
+                num = regop1
+                num2 = regop2
+
+                try:
+                    regop1 = (num % regop2)
+                except:
+                    ZeroDivisionError
 
             if command == 0b10000010:  # LDI/Save
                 # registers the next line as the index inserting the line after that one as the value
