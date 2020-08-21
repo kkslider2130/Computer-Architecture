@@ -10,9 +10,9 @@ class CPU:
         """Construct a new CPU."""
         self.reg = [0]*8
         self.reg[7] = 0xF4
-        self.flag = 0
         self.ram = [0]*256
         self.pc = 0
+        self.flag = 0
 
     def load(self):
         """Load a program into memory."""
@@ -152,3 +152,25 @@ class CPU:
                 sp = self.reg[7]
                 self.reg[7] += 1
                 self.pc = self.ram[sp]
+
+            if command == 0b10100111:  # CMP
+                self.alu("CMP", self.reg[operand1], self.reg[operand2])
+
+            if command == 0b01010100:  # JMP
+                self.pc = self.reg[operand1]
+
+            if command == 0b01010101:  # JEQ
+                if self.flag == 0b00000001:
+                    self.pc = self.reg[operand1]
+                else:
+                    self.pc += 2
+
+            if command == 0b01010110:  # JNE
+                if self.flag != 0b00000001:
+                    self.pc = self.reg[operand1]
+                else:
+                    self.pc += 2
+
+            if command != 0b01010000 and command != 0b01010100 and command != 0b01010101 and command != 0b01010110:
+                self.pc += command >> 6
+                self.pc += 1
