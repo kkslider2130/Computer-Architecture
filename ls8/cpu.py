@@ -2,43 +2,78 @@
 
 import sys
 
+
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.reg = [0]*8
+        self.reg[7] = 0xF4
+        self.ram = [0]*256
+        self.pc = 0
+        self.flag = 0
 
     def load(self):
         """Load a program into memory."""
 
-        address = 0
-
         # For now, we've just hardcoded a program:
 
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+        # program = [
+        #     # From print8.ls8
+        #     0b10000010,  # LDI R0,8
+        #     0b00000000,
+        #     0b00001000,
+        #     0b01000111,  # PRN R0
+        #     0b00000000,
+        #     0b00000001,  # HLT
+        # ]*8
 
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        if len(sys.argv) < 2:
+            print('please pass in a second filename')
+            sys.exit()
+        try:
+            address = 0
+            with open(sys.argv[1]) as files:
+                for line in files:
+                    split_line = line.split('#')
+                    command = split_line[0].strip()
+                    if command == '':
+                        continue
+                    num_command = int(command, 2)
 
+                    self.ram[address] = num_command
+                    address += 1
+        except FileNotFoundError:
+            print(f'{sys.argv[0]}{sys.argv[1]}file was not found')
+            sys.exit()
+
+        # for instruction in program:
+        #     self.ram[address] = instruction
+        #     address += 1
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        # elif op == "SUB": etc
+        elif op == "CMP":
+            if reg_a == reg_b:
+                self.flag = 0b00000001
+            elif reg_a < reg_b:
+                self.flag = 0b00000100
+            elif reg_a > reg_b:
+                self.flag = 0b00000010
+
         else:
             raise Exception("Unsupported ALU operation")
+
+    def ram_read(self, address):
+        return self.ram[address]
+
+    def ram_write(self, address, value):
+        self.reg[address] = value
 
     def trace(self):
         """
@@ -48,8 +83,8 @@ class CPU:
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
             self.pc,
-            #self.fl,
-            #self.ie,
+            # self.fl,
+            # self.ie,
             self.ram_read(self.pc),
             self.ram_read(self.pc + 1),
             self.ram_read(self.pc + 2)
@@ -62,4 +97,127 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        self.load()
+        while self.pc < len(self.ram):
+            command = self.ram[self.pc]
+            HLT = 0b00000001
+            AND = 0b10101000
+            OR = 0b10101010
+            XOR = 0b10101011
+            NOT = 0b01101001
+            SHL = 0b10101100
+            SHR = 0b10101101
+            MOD = 0b10100100,
+            operand1 = self.ram_read(self.pc+1)
+            operand2 = self.ram_read(self.pc+2)
+            regop1 = self.reg[operand1]
+            regop2 = self.reg[operand2]
+
+            if command == HLT:  # stops program
+                break
+
+            if command == AND:
+                num = regop1
+                num2 = regop2
+                regop1 = (num & num2)
+
+            if command == OR:
+                num = regop1
+                num2 = regop2
+                regop1 = (num | num2)
+
+            if command == XOR:
+                num = regop1
+                num2 = regop2
+                regop1 = (num ^ num2)
+
+            if command == NOT:
+                num = regop1
+                regop1 = ~num
+
+            if command == SHL:
+                num = regop1
+                num2 = regop2
+                regop1 = regop1 << regop2
+
+            if command == SHR:
+                num = regop1
+                num2 = regop2
+                regop1 = regop1 >> regop2
+
+            if command == MOD:
+                num = regop1
+                num2 = regop2
+
+                try:
+                    regop1 = (num % regop2)
+                except:
+                    ZeroDivisionError
+
+            if command == 0b10000010:  # LDI/Save
+                # registers the next line as the index inserting the line after that one as the value
+                self.ram_write(operand1, operand2)
+
+            if command == 0b01000111:  # prints next line
+                print(self.reg[operand1])
+
+            if command == 0b10100010:  # multiplies the numbers of the indexes of the next 2 lines
+                self.reg[operand1] *= self.reg[operand2]
+
+            if command == 0b10100000:  # sum
+                self.reg[operand1] += self.reg[operand2]
+
+            if command == 0b01000101:  # Push
+                self.reg[7] -= 1  # decrement stack pointer
+                self.reg[7] &= 0xff
+
+                # get the index
+                reg_index = self.ram[self.pc+1]
+                # get the value at the pointer's address
+                value = self.reg[reg_index]
+                self.ram[self.reg[7]] = value
+
+            if command == 0b01000110:  # Pop
+                # get the stack pointer
+                sp = self.reg[7]
+                # get register number to put value in
+                reg = self.ram[self.pc+1]
+                # use stack pointer to get the value
+                value = self.ram[sp]
+                # put the value into the given register
+                self.reg[reg] = value
+
+                self.reg[7] += 1
+
+            if command == 0b01010000:  # Call
+                self.reg[7] -= 1
+                sp = self.reg[7]
+                self.ram[sp] = self.pc+1
+                self.pc = self.reg[operand1]
+
+            if command == 0b00010001:  # RET
+                sp = self.reg[7]
+                self.reg[7] += 1
+                self.pc = self.ram[sp]
+
+            if command == 0b10100111:  # CMP
+                self.alu("CMP", self.reg[operand1], self.reg[operand2])
+
+            if command == 0b01010100:  # JMP
+                self.pc = self.reg[operand1]
+
+            if command == 0b01010101:  # JEQ
+                if self.flag == 0b00000001:
+                    self.pc = self.reg[operand1]
+                else:
+                    self.pc += 2
+
+            if command == 0b01010110:  # JNE
+                if self.flag != 0b00000001:
+                    self.pc = self.reg[operand1]
+                else:
+                    self.pc += 2
+
+            if command != 0b01010000 and command != 0b01010100 and command != 0b01010101 and command != 0b01010110:
+                self.pc += command >> 6
+                self.pc += 1
